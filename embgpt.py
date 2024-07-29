@@ -1,11 +1,8 @@
 import streamlit as st
-from anthropic import Anthropic
+import anthropic
 import time
 from datetime import datetime
 import yaml
-
-# Set up the Anthropic client
-client = Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
 # Page configuration
 st.set_page_config(page_title="EMB-AI", layout="wide", initial_sidebar_state="collapsed")
@@ -114,17 +111,19 @@ with st.expander("Project Details", expanded=True):
 # Function to generate BRD part
 def generate_brd_part(prompt, placeholder):
     response = ""
-    with client.messages.stream(
-        model="claude-3-opus-20240229",
-        max_tokens=4096,
-        temperature=1,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    ) as stream:
-        for text in stream.text_stream:
-            response += text
-            placeholder.markdown(response)
+    try:
+        with anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"]).messages.stream(
+            max_tokens=4096,
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            model="claude-3-opus-20240229"
+        ) as stream:
+            for text in stream.text_stream:
+                response += text
+                placeholder.markdown(response)
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
     return response
 
 # Generate BRD button
@@ -198,7 +197,6 @@ if st.button("Generate BRD", key="generate_brd"):
         - Use regular text for content
         - Use bullet points or numbered lists where appropriate
         """
-
 
         with st.spinner('Generating Part 1: Confidentiality Agreement, Executive Summary, and Project Approach...'):
             response_part1 = generate_brd_part(prompt_part1, part1_placeholder)
