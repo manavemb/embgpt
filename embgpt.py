@@ -4,6 +4,9 @@ import time
 from datetime import datetime
 import yaml
 
+# Initialize the Anthropic client using Streamlit secrets
+client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+
 # Page configuration
 st.set_page_config(page_title="EMB-AI", layout="wide", initial_sidebar_state="collapsed")
 
@@ -112,7 +115,7 @@ with st.expander("Project Details", expanded=True):
 def generate_brd_part(prompt, placeholder):
     response = ""
     try:
-        with anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"]).messages.stream(
+        with client.beta.messages.stream(
             max_tokens=4096,
             messages=[
                 {"role": "user", "content": prompt}
@@ -124,6 +127,8 @@ def generate_brd_part(prompt, placeholder):
                 placeholder.markdown(response)
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
+        st.error(f"Error type: {type(e).__name__}")
+        st.error(f"Error args: {e.args}")
     return response
 
 # Generate BRD button
@@ -317,3 +322,6 @@ if st.button("Generate BRD", key="generate_brd"):
         )
     else:
         st.error("Please fill in all fields before generating the BRD.")
+
+# Optionally, you can add this line to check if the API key is set (for debugging)
+# st.write("Anthropic API Key is set:", "ANTHROPIC_API_KEY" in st.secrets)
