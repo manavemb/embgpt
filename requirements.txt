@@ -5,6 +5,7 @@ anthropic==0.31.2
 # PDF generation
 reportlab==3.6.12
 markdown2==2.4.8
+beautifulsoup4==4.12.3
 
 # YAML parsing
 pyyaml==6.0.1
