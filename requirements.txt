@@ -37,4 +37,4 @@ black==23.7.0
 flake8==6.1.0
 
 # Typing Animations
-streamlit-lottie=0.0.5
+streamlit-lottie==0.0.5
