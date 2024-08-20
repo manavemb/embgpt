@@ -35,3 +35,6 @@ typing-extensions==4.7.1
 pytest==7.4.0
 black==23.7.0
 flake8==6.1.0
+
+# Typing Animations
+streamlit-lottie=0.0.5
