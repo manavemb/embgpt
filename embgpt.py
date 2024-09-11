@@ -13,7 +13,6 @@ from reportlab.lib.units import cm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-from streamlit.components.v1 import html
 import base64
 from bs4 import BeautifulSoup
 from reportlab.pdfbase import pdfmetrics
@@ -30,8 +29,23 @@ import re
 # Set up the Anthropic client
 client = Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
+# Disable dark mode
+st.set_theme('light')
+
+# Prevent browser from forcing dark mode
+st.markdown("""
+    <style>
+    @media (prefers-color-scheme: dark) {
+        body {
+            color: #000000 !important;
+            background-color: #ffffff !important;
+        }
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Force light theme and set page config
-st.set_page_config(page_title="EMB-AI BRD Generator", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="EMB-AI BRD Generator", layout="wide", initial_sidebar_state="collapsed", theme="light")
 
 # Register Poppins fonts
 pdfmetrics.registerFont(TTFont('Poppins', 'assets/Poppins-Regular.ttf'))
@@ -46,7 +60,7 @@ def get_base64_of_bin_file(bin_file):
 # Load the local watermark image
 watermark_base64 = get_base64_of_bin_file('watermark.png')
 
-# Custom CSS for improved styling and dark mode support
+# Custom CSS for improved styling
 st.markdown(f"""
     <style>
     @font-face {{
@@ -65,14 +79,16 @@ st.markdown(f"""
 
     body, .stMarkdown, .stMarkdown * {{
         font-family: 'Poppins', sans-serif;
+        color: #000000;
+        background-color: #ffffff;
     }}
     
     .main .block-container {{padding-top: 1rem; padding-bottom: 0rem;}}
     .stTitle {{font-size: 2.5rem;}}
     .stSubheader {{font-size: 1.3rem;}} 
     .stButton>button {{background-color: #0066cc; color: white;}}
-    .stTextInput>div>div>input {{background-color: var(--input-bg);}}
-    .stTextArea>div>div>textarea {{background-color: var(--input-bg);}}
+    .stTextInput>div>div>input {{background-color: #f0f2f6;}}
+    .stTextArea>div>div>textarea {{background-color: #f0f2f6;}}
     .header-container {{
         display: flex;
         align-items: center;
@@ -94,42 +110,15 @@ st.markdown(f"""
     .header-text h1 {{
         margin: 0;
         font-size: 2.5rem;
-        color: var(--text-color);
+        color: #000000;
     }}
     .header-text h3 {{
         margin: 0;
         font-size: 1.3rem;
-        color: var(--text-color);
+        color: #000000;
     }}
     .sidebar-content {{padding: 1rem;}}
-    .stExpander {{border: 1px solid var(--border-color); border-radius: 0.5rem; margin-bottom: 1rem;}}
-    
-    /* Dark mode adjustments */
-    @media (prefers-color-scheme: dark) {{
-        :root {{
-            --text-color: #ffffff;
-            --background-color: #0e1117;
-            --input-bg: #262730;
-            --border-color: #4d4d4d;
-        }}
-        body {{
-            color: var(--text-color);
-            background-color: var(--background-color);
-        }}
-        .stTextInput>div>div>input, .stTextArea>div>div>textarea {{
-            color: var(--text-color);
-        }}
-    }}
-    
-    /* Light mode */
-    @media (prefers-color-scheme: light) {{
-        :root {{
-            --text-color: #000000;
-            --background-color: #ffffff;
-            --input-bg: #f0f2f6;
-            --border-color: #e6e6e6;
-        }}
-    }}
+    .stExpander {{border: 1px solid #e6e6e6; border-radius: 0.5rem; margin-bottom: 1rem;}}
     </style>
     """, unsafe_allow_html=True)
 
@@ -689,7 +678,7 @@ if st.button("Generate BRD", key="generate_brd"):
 
         Now, include the following sections:
 
-        1. User Journey and User Stories:
+                1. User Journey and User Stories:
         - For each user type identified earlier, create a detailed user journey that outlines their interaction with the system from start to finish.
         - Break down each journey into individual screens or key interaction points.
         - For each screen or interaction point, provide detailed user stories in the format: "As a [user type], I want to [action] so that [benefit]."
@@ -768,33 +757,6 @@ if st.button("Generate BRD", key="generate_brd"):
 
     else:
         st.error("Please fill in all fields before generating the BRD.")
-
-# Feedback Form in a collapsible section (open by default)
-st.markdown("---")
-with st.expander("We Value Your Feedback!", expanded=True):
-    st.markdown("Please take a moment to provide your feedback on the BRD Generator tool.")
-    
-    # Embed the Tally feedback form with increased height
-    tally_embed_code = """
-    <iframe data-tally-src="https://tally.so/embed/mVV08g?alignLeft=1&transparentBackground=1&dynamicHeight=1" loading="lazy" width="100%" height="7200" frameborder="0" marginheight="0" marginwidth="0" title="BRD Generator Feedback Q&A"></iframe>
-    <script>var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector('script[src="'+w+'"]')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s);}</script>
-    """
-    
-    html(tally_embed_code, height=4600)
-
-# Add a visual representation of the BRD generation process
-st.markdown("## BRD Generation Process")
-process_chart = """
-digraph G {
-    rankdir=LR;
-    node [shape=box, style=filled, color=lightblue];
-    Input [label="User Input"];
-    Process [label="AI Processing"];
-    Output [label="Generated BRD"];
-    Input -> Process -> Output;
-}
-"""
-st.graphviz_chart(process_chart)
 
 # Add some final instructions or information
 st.markdown("""
