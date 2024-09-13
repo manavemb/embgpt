@@ -25,6 +25,7 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.shared import OxmlElement, qn
 from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
+import tiktoken
 import re
 
 # Set up the Anthropic client
@@ -32,6 +33,8 @@ client = Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
 # Force light theme and set page config
 st.set_page_config(page_title="EMB-AI BRD Generator", layout="wide", initial_sidebar_state="collapsed")
+
+st.header("EMB-AI BRD Studio")
 
 # Register Poppins fonts
 pdfmetrics.registerFont(TTFont('Poppins', 'assets/Poppins-Regular.ttf'))
@@ -45,93 +48,6 @@ def get_base64_of_bin_file(bin_file):
 
 # Load the local watermark image
 watermark_base64 = get_base64_of_bin_file('watermark.png')
-
-# Custom CSS for improved styling and dark mode support
-st.markdown(f"""
-    <style>
-    @font-face {{
-      font-family: 'Poppins';
-      src: url('assets/Poppins-Regular.ttf') format('truetype');
-      font-weight: normal;
-      font-style: normal;
-    }}
-
-    @font-face {{
-      font-family: 'Poppins';
-      src: url('assets/Poppins-Bold.ttf') format('truetype');
-      font-weight: bold;
-      font-style: normal;
-    }}
-
-    body, .stMarkdown, .stMarkdown * {{
-        font-family: 'Poppins', sans-serif;
-    }}
-    
-    .main .block-container {{padding-top: 1rem; padding-bottom: 0rem;}}
-    .stTitle {{font-size: 2.5rem;}}
-    .stSubheader {{font-size: 1.3rem;}} 
-    .stButton>button {{background-color: #0066cc; color: white;}}
-    .stTextInput>div>div>input {{background-color: var(--input-bg);}}
-    .stTextArea>div>div>textarea {{background-color: var(--input-bg);}}
-    .header-container {{
-        display: flex;
-        align-items: center;
-        padding: 1rem 0;
-        margin-bottom: 2rem;
-    }}
-    .watermark-img {{
-        width: 80px;
-        height: 80px;
-        margin-right: 1rem;
-        background-image: url("data:image/png;base64,{watermark_base64}");
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }}
-    .header-text {{
-        flex-grow: 1;
-    }}
-    .header-text h1 {{
-        margin: 0;
-        font-size: 2.5rem;
-        color: var(--text-color);
-    }}
-    .header-text h3 {{
-        margin: 0;
-        font-size: 1.3rem;
-        color: var(--text-color);
-    }}
-    .sidebar-content {{padding: 1rem;}}
-    .stExpander {{border: 1px solid var(--border-color); border-radius: 0.5rem; margin-bottom: 1rem;}}
-    
-    /* Dark mode adjustments */
-    @media (prefers-color-scheme: dark) {{
-        :root {{
-            --text-color: #ffffff;
-            --background-color: #0e1117;
-            --input-bg: #262730;
-            --border-color: #4d4d4d;
-        }}
-        body {{
-            color: var(--text-color);
-            background-color: var(--background-color);
-        }}
-        .stTextInput>div>div>input, .stTextArea>div>div>textarea {{
-            color: var(--text-color);
-        }}
-    }}
-    
-    /* Light mode */
-    @media (prefers-color-scheme: light) {{
-        :root {{
-            --text-color: #000000;
-            --background-color: #ffffff;
-            --input-bg: #f0f2f6;
-            --border-color: #e6e6e6;
-        }}
-    }}
-    </style>
-    """, unsafe_allow_html=True)
 
 # Load Lottie animations
 def load_lottieurl(url: str):
@@ -178,6 +94,238 @@ def load_confidentiality_agreement():
         return f"An unexpected error occurred while loading the confidentiality agreement: {str(e)}"
 
 confidentiality_agreement = load_confidentiality_agreement()
+
+# Function to count tokens
+def count_tokens(text):
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
+    except Exception as e:
+        print(f"Error in token counting: {str(e)}")
+        return len(text.split())
+
+# Function to determine mode based on model selections
+def determine_mode(model_part1, model_part2, model_part3, model_part4):
+    if all(model == "Intelligent" for model in [model_part1, model_part2, model_part3, model_part4]):
+        return "Lite Mode"
+    elif model_part1 == "Intelligent" and model_part2 == "Complex" and model_part3 == "Intelligent" and model_part4 == "Complex":
+        return "Default Mode"
+    elif all(model == "Complex" for model in [model_part1, model_part2, model_part3, model_part4]):
+        return "Advanced Mode"
+    else:
+        return "Custom Mode"
+
+# Function to update sidebar model selections based on mode
+def update_sidebar_models(mode):
+    if mode == "Lite Mode":
+        st.session_state.model_part1 = "Intelligent"
+        st.session_state.model_part2 = "Intelligent"
+        st.session_state.model_part3 = "Intelligent"
+        st.session_state.model_part4 = "Intelligent"
+    elif mode == "Default Mode":
+        st.session_state.model_part1 = "Intelligent"
+        st.session_state.model_part2 = "Complex"
+        st.session_state.model_part3 = "Intelligent"
+        st.session_state.model_part4 = "Complex"
+    elif mode == "Advanced Mode":
+        st.session_state.model_part1 = "Complex"
+        st.session_state.model_part2 = "Complex"
+        st.session_state.model_part3 = "Complex"
+        st.session_state.model_part4 = "Complex"
+
+# Initialize session state for mode and models if not exists
+if 'mode' not in st.session_state:
+    st.session_state.mode = "Default Mode"
+if 'model_part1' not in st.session_state:
+    st.session_state.model_part1 = "Intelligent"
+if 'model_part2' not in st.session_state:
+    st.session_state.model_part2 = "Complex"
+if 'model_part3' not in st.session_state:
+    st.session_state.model_part3 = "Intelligent"
+if 'model_part4' not in st.session_state:
+    st.session_state.model_part4 = "Complex"
+
+# Mode selection in the main area
+mode = st.radio(
+    "Select BRD Generation Mode:",
+    ("Lite Mode", "Default Mode", "Advanced Mode", "Custom Mode"),
+    index=1,  # Set Default Mode as the default selection
+    key="mode_selection",
+    horizontal=True 
+)
+
+# Update sidebar models if mode is changed
+if mode != st.session_state.mode and mode != "Custom Mode":
+    update_sidebar_models(mode)
+    st.session_state.mode = mode
+
+# Sidebar content
+with st.sidebar:
+    st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
+    st.header("User Onboarding")
+    st.info("Welcome! Please provide your information below.")
+    
+    user_name = st.text_input("Your Name", placeholder="John Doe")
+    user_designation = st.selectbox(
+        "Your Designation",
+        ["Sales", "Business Analyst", "Project Manager"],
+        index=0
+    )
+    
+    if user_name or user_designation:
+        welcome_message = f"Welcome, {user_name}"
+        if user_designation:
+            welcome_message += f" - {user_designation}"
+        st.success(welcome_message)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Advanced Settings
+    st.header("Advanced Settings")
+    
+    # Model selection for each part
+    st.subheader("AI Model Selection")
+    model_part1 = st.selectbox("Part 1 Model", ["Intelligent", "Complex"], index=0, key="model_part1")
+    model_part2 = st.selectbox("Part 2 Model", ["Intelligent", "Complex"], index=1, key="model_part2")
+    model_part3 = st.selectbox("Part 3 Model", ["Intelligent", "Complex"], index=0, key="model_part3")
+    model_part4 = st.selectbox("Part 4 Model", ["Intelligent", "Complex"], index=1, key="model_part4")
+    
+    # Temperature settings for each part
+    st.subheader("Temperature Settings")
+    temp_part1 = st.slider("Part 1 Temperature", 0.0, 1.0, 1.0, 0.1)
+    temp_part2 = st.slider("Part 2 Temperature", 0.0, 1.0, 1.0, 0.1)
+    temp_part3 = st.slider("Part 3 Temperature", 0.0, 1.0, 1.0, 0.1)
+    temp_part4 = st.slider("Part 4 Temperature", 0.0, 1.0, 1.0, 0.1)
+    
+    # Section selection for each part
+    st.subheader("Section Selection")
+    sections_part1 = st.multiselect(
+        "Part 1 Sections",
+        ["Confidentiality Agreement", "Executive Summary", "Project Approach"],
+        ["Confidentiality Agreement", "Executive Summary", "Project Approach"]
+    )
+    sections_part2 = st.multiselect(
+        "Part 2 Sections",
+        ["Functional Requirements", "3rd Party Integrations and API Suggestions"],
+        ["Functional Requirements", "3rd Party Integrations and API Suggestions"]
+    )
+    sections_part3 = st.multiselect(
+        "Part 3 Sections",
+        ["User Journey and User Stories", "Non-Functional Requirements"],
+        ["User Journey and User Stories", "Non-Functional Requirements"]
+    )
+    sections_part4 = st.multiselect(
+        "Part 4 Sections",
+        ["Annexure"],
+        ["Annexure"]
+    )
+
+    # Determine mode based on model selections
+    determined_mode = determine_mode(model_part1, model_part2, model_part3, model_part4)
+
+    # Update mode if sidebar selections change
+    if determined_mode != st.session_state.mode:
+        st.session_state.mode = determined_mode
+        st.session_state.mode_selection = determined_mode
+
+# Sync mode with sidebar settings
+if mode != st.session_state.mode:
+    st.warning(f"Mode selection doesn't match sidebar settings. Adjusting to {st.session_state.mode}.")
+    mode = st.session_state.mode
+    st.session_state.mode_selection = st.session_state.mode
+
+# Function to determine model based on mode and part
+def get_model(part, mode):
+    if mode == "Lite Mode":
+        return "claude-3-5-sonnet-20240620"
+    elif mode == "Default Mode":
+        if part in [1, 3]:
+            return "claude-3-5-sonnet-20240620"
+        else:
+            return "claude-3-opus-20240229"
+    elif mode == "Advanced Mode":
+        return "claude-3-opus-20240229"
+    else:  # Custom Mode
+        model_selection = {
+            1: st.session_state.model_part1,
+            2: st.session_state.model_part2,
+            3: st.session_state.model_part3,
+            4: st.session_state.model_part4
+        }
+        return "claude-3-opus-20240229" if model_selection[part] == "Complex" else "claude-3-5-sonnet-20240620"
+
+# Main content
+st.markdown("""
+This app generates a comprehensive Business Requirements Document (BRD) based on your inputs.
+Fill in the fields below and click 'Generate BRD' to create your document.
+""")
+
+# Initialize session state for form fields
+if 'form_fields' not in st.session_state:
+    st.session_state.form_fields = {
+        'client_name': '',
+        'project_description': '',
+        'user_types': '',
+        'deliverables': ''
+    }
+
+# Function to update session state
+def update_form_field():
+    for field in st.session_state.form_fields.keys():
+        if field in st.session_state:
+            st.session_state.form_fields[field] = st.session_state[field]
+
+# Progress bar
+total_fields = len(st.session_state.form_fields)
+filled_fields = sum(1 for value in st.session_state.form_fields.values() if value)
+progress = filled_fields / total_fields
+st.progress(progress)
+st.write(f"Form Completion: {filled_fields}/{total_fields} fields")
+
+# Input fields
+with st.expander("Client and Project Information", expanded=True):
+    client_name = st.text_input("Client Name",
+                                placeholder="Enter the client's name (e.g., Acme Corporation)",
+                                value=st.session_state.form_fields['client_name'],
+                                key='client_name', on_change=update_form_field)
+    project_description = st.text_area("Project Description and Requirements",
+                                       placeholder="Provide a detailed description of the project and list the main requirements. You can use bullet points or numbered lists.",
+                                       height=200,
+                                       value=st.session_state.form_fields['project_description'],
+                                       key='project_description', on_change=update_form_field)
+
+with st.expander("Project Details", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        user_types = st.text_area("Types of Users",
+                                  placeholder="List the different types of users who will interact with the system, one per line (e.g., Admin, Customer, Guest)",
+                                  height=150,
+                                  value=st.session_state.form_fields['user_types'],
+                                  key='user_types', on_change=update_form_field)
+    with col2:
+        deliverables = st.text_area("Project Deliverables",
+                                    placeholder="List the main deliverables or components of the project, one per line (e.g., User Dashboard, Admin Panel, API Integration)",
+                                    height=150,
+                                    value=st.session_state.form_fields['deliverables'],
+                                    key='deliverables', on_change=update_form_field)
+
+# Function to generate BRD part
+def generate_brd_part(prompt, placeholder, model, temperature):
+    response = ""
+    
+    with client.messages.stream(
+        model=model,
+        max_tokens=4096,
+        temperature=temperature,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    ) as stream:
+        for text in stream.text_stream:
+            response += text
+            placeholder.markdown(response)
+    
+    return response
 
 # Convert Markdown to PDF function
 def convert_markdown_to_pdf(markdown_content):
@@ -468,108 +616,6 @@ def convert_markdown_to_docx(markdown_content):
     docx_buffer.seek(0)
     return docx_buffer
 
-# Function to generate BRD part
-def generate_brd_part(prompt, placeholder):
-    response = ""
-    with client.messages.stream(
-        model="claude-3-opus-20240229",
-        max_tokens=4096,
-        temperature=1,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    ) as stream:
-        for text in stream.text_stream:
-            response += text
-            placeholder.markdown(response)
-    return response
-
-# Header with watermark
-st.markdown("""
-    <div class="header-container">
-        <div class="watermark-img"></div>
-        <div class="header-text">
-            <h1>EMB-AI BRD Generator</h1>
-            <h3>Your Business Analyst in Your Pocket</h3>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Sidebar for user onboarding
-with st.sidebar:
-    st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
-    st.header("User Onboarding")
-    st.info("Welcome! Please provide your information below.")
-    
-    user_name = st.text_input("Your Name", placeholder="John Doe")
-    user_designation = st.selectbox(
-        "Your Designation",
-        ["Sales", "Business Analyst", "Project Manager"],
-        index=0
-    )
-    
-    if user_name or user_designation:
-        welcome_message = f"Welcome, {user_name}"
-        if user_designation:
-            welcome_message += f" - {user_designation}"
-        st.success(welcome_message)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Main content
-st.markdown("""
-This app generates a comprehensive Business Requirements Document (BRD) based on your inputs.
-Fill in the fields below and click 'Generate BRD' to create your document.
-""")
-
-# Initialize session state for form fields
-if 'form_fields' not in st.session_state:
-    st.session_state.form_fields = {
-        'client_name': '',
-        'project_description': '',
-        'user_types': '',
-        'deliverables': ''
-    }
-
-# Function to update session state
-def update_form_field():
-    for field in st.session_state.form_fields.keys():
-        if field in st.session_state:
-            st.session_state.form_fields[field] = st.session_state[field]
-
-# Progress bar
-total_fields = len(st.session_state.form_fields)
-filled_fields = sum(1 for value in st.session_state.form_fields.values() if value)
-progress = filled_fields / total_fields
-st.progress(progress)
-st.write(f"Form Completion: {filled_fields}/{total_fields} fields")
-
-# Input fields
-with st.expander("Client and Project Information", expanded=True):
-    client_name = st.text_input("Client Name",
-                                placeholder="Enter the client's name (e.g., Acme Corporation)",
-                                value=st.session_state.form_fields['client_name'],
-                                key='client_name', on_change=update_form_field)
-    project_description = st.text_area("Project Description and Requirements",
-                                       placeholder="Provide a detailed description of the project and list the main requirements. You can use bullet points or numbered lists.",
-                                       height=200,
-                                       value=st.session_state.form_fields['project_description'],
-                                       key='project_description', on_change=update_form_field)
-
-with st.expander("Project Details", expanded=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        user_types = st.text_area("Types of Users",
-                                  placeholder="List the different types of users who will interact with the system, one per line (e.g., Admin, Customer, Guest)",
-                                  height=150,
-                                  value=st.session_state.form_fields['user_types'],
-                                  key='user_types', on_change=update_form_field)
-    with col2:
-        deliverables = st.text_area("Project Deliverables",
-                                    placeholder="List the main deliverables or components of the project, one per line (e.g., User Dashboard, Admin Panel, API Integration)",
-                                    height=150,
-                                    value=st.session_state.form_fields['deliverables'],
-                                    key='deliverables', on_change=update_form_field)
-
 # Generate BRD button
 if st.button("Generate BRD", key="generate_brd"):
     if all(st.session_state.form_fields.values()):
@@ -589,6 +635,7 @@ if st.button("Generate BRD", key="generate_brd"):
         part1_container = st.container()
         part2_container = st.container()
         part3_container = st.container()
+        part4_container = st.container()
 
         # Display Lottie animation or fallback text while generating BRD
         with st.spinner("Generating your BRD..."):
@@ -596,7 +643,7 @@ if st.button("Generate BRD", key="generate_brd"):
 
         # Part 1: Confidentiality Agreement, Executive Summary, and Project Approach
         prompt_part1 = f"""
-        Create the first part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading , sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
+        Create the first part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading, sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
 
         Client Name: {st.session_state.form_fields['client_name']}
         Project Description and Requirements:
@@ -607,16 +654,29 @@ if st.button("Generate BRD", key="generate_brd"):
         {deliverables_str}
 
         Include the following sections:
-        1. Confidentiality Agreement: Use the following agreement:
-        {confidentiality_agreement}
+        """
 
-        2. Executive Summary: 
-        - Provide a brief overview of the project, its objectives, and key stakeholders.
-        - Include a detailed list of project deliverables, explaining each one concisely.
+        if "Confidentiality Agreement" in sections_part1:
+            prompt_part1 += f"""
+            1. Confidentiality Agreement: Use the following agreement:
+            {confidentiality_agreement}
+            """
 
-        3. Project Approach: 
-        Outline the methodology, timeline, and key milestones for the project.
+        if "Executive Summary" in sections_part1:
+            prompt_part1 += """
+            2. Executive Summary: 
+            - Provide a brief overview of the project, its objectives, and key stakeholders.
+            - Include a detailed list of project deliverables, explaining each one concisely.
+            """
 
+        if "Project Approach" in sections_part1:
+            prompt_part1 += """
+            3. Project Approach: 
+            - Describe the methodology, timeline, and key milestones based on the deliverables of the project.
+            - Add a note mentioning that they are just for references only, final milestones will be provided in further discussions.
+            """
+
+        prompt_part1 += """
         Provide detailed and professional content for each section, incorporating all the provided information.
         Use Markdown formatting for proper structure.
         Do not include a title for the BRD itself, as it will be added separately.
@@ -624,14 +684,15 @@ if st.button("Generate BRD", key="generate_brd"):
 
         with st.spinner('Generating Part 1: Confidentiality Agreement, Executive Summary, and Project Approach...'):
             with part1_container:
-                response_part1 = generate_brd_part(prompt_part1, st.empty())
+                model = get_model(1, mode)
+                response_part1 = generate_brd_part(prompt_part1, st.empty(), model, temp_part1)
         
-        progress_bar.progress(1/3)
+        progress_bar.progress(1/4)
         status_text.text("Part 1 completed. Generating Part 2...")
 
         # Part 2: Functional Requirements and 3rd Party Integrations
         prompt_part2 = f"""
-        Create the second part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading , sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
+        Create the second part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading, sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
 
         Client Name: {st.session_state.form_fields['client_name']}
         Project Description and Requirements:
@@ -645,35 +706,46 @@ if st.button("Generate BRD", key="generate_brd"):
         {response_part1}
 
         Now, include the following sections:
+        """
 
-        1. Functional Requirements:
-        - For each deliverable, create at least 48 detailed modules as per requirement.
-        - Structure each requirement as: Module, Sub - Module (Optional), Description.
-        - Ensure the requirements are comprehensive and cover all aspects of the project.
-        - For each user-side module, include a corresponding management module in the admin panel.
+        if "Functional Requirements" in sections_part2:
+            prompt_part2 += """
+            1. Functional Requirements:
+            - For each deliverable, create at least 48 detailed modules as per requirement.
+            - Structure each requirement as: Module, Sub - Module (Optional), Description.
+            - Ensure the requirements are comprehensive and cover all aspects of the project.
+            - Write description of each module in 3 or more lines respectively.
+            - Descripton must be present against each module.
+            - For each user-side module, include a corresponding management module in the admin panel.
+            - Don't use any keywords like Module & Description in output.
+            """
 
-        2. 3rd Party Integrations and API Suggestions:
-        - Based on the functional requirements, suggest potential 3rd party integrations or APIs that could be used to implement or enhance various features of the system.
-        - For each suggestion, provide:
-          a. Name of the 3rd party service or API
-          b. Brief description of its functionality
-          c. Specific features or requirements it could address
-          d. Potential benefits of using this integration
+        if "3rd Party Integrations and API Suggestions" in sections_part2:
+            prompt_part2 += """
+            2. 3rd Party Integrations and API Suggestions:
+            - Based on the functional requirements, suggest potential 3rd party integrations or APIs that could be used to implement or enhance various features of the system.
+            - For each suggestion, provide:
+              a. Name of the 3rd party service or API
+              b. Brief description of its functionality or requirement it can address
+              c. Try to suggest API or services specifically for Indian region & Mention their international alternatives too if client is from any other country.
+            """
 
+        prompt_part2 += """
         Provide detailed and professional content, incorporating all the provided information and ensuring consistency with the previously generated sections.
         Use Markdown formatting for proper structure.
         """
 
         with st.spinner('Generating Part 2: Functional Requirements and 3rd Party Integrations...'):
             with part2_container:
-                response_part2 = generate_brd_part(prompt_part2, st.empty())
+                model = get_model(2, mode)
+                response_part2 = generate_brd_part(prompt_part2, st.empty(), model, temp_part2)
 
-        progress_bar.progress(2/3)
+        progress_bar.progress(2/4)
         status_text.text("Part 2 completed. Generating Part 3...")
 
-        # Part 3: User Journey, User Stories, Non-Functional Requirements, and Annexure
+        # Part 3: User Journey, User Stories, and Non-Functional Requirements
         prompt_part3 = f"""
-        Create the third part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading , sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
+        Create the third part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading, sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
 
         Client Name: {st.session_state.form_fields['client_name']}
         Project Description and Requirements:
@@ -688,34 +760,79 @@ if st.button("Generate BRD", key="generate_brd"):
         {response_part2}
 
         Now, include the following sections:
+        """
 
-        1. User Journey and User Stories:
-        - For each user type identified earlier, create a detailed user journey that outlines their interaction with the system from start to finish.
-        - Break down each journey into individual screens or key interaction points.
-        - For each screen or interaction point, provide detailed user stories in the format: "As a [user type], I want to [action] so that [benefit]."
-        - Ensure that these user journeys and stories align with and reference the functional requirements generated in the previous section.
+        if "User Journey and User Stories" in sections_part3:
+            prompt_part3 += """
+            1. User Journey and User Stories:
+            - For each user type identified earlier, create a detailed user journey that outlines their interaction with the system from start to finish.
+            - Break down each journey into individual screens or key interaction points.
+            - For each screen or interaction point, provide detailed user stories in the format: "As a [user type], I want to [action] so that [benefit]."
+            - Ensure that these user journeys and stories align with and reference the functional requirements generated in the previous section.
+            """
 
-        2. Non-Functional Requirements: 
-        Specify performance, security, scalability, and other non-functional aspects of the system.
+        if "Non-Functional Requirements" in sections_part3:
+            prompt_part3 += """
+            2. Non-Functional Requirements: 
+            Specify performance, security, scalability, and other non-functional aspects of the system.
+            """
 
-        3. Annexure: 
-        a. Functional Requirements: Create a separate table for each deliverable in the Functional Requirements. Each table should have the following columns:
-        - Requirement ID
-        - Module
-        - Description
-
-        b. 3rd Party Services and APIs: Create a table summarizing all suggested 3rd party services and APIs. This table should have the following columns:
-        - Service/API Name
-        - Functional Area
-        - Description
-
+        prompt_part3 += """
         Provide detailed and professional content for each section, incorporating all the provided information and ensuring consistency with the previously generated sections.
         Use Markdown formatting for proper structure, including tables where specified.
         """
 
-        with st.spinner('Generating Part 3: User Journey, User Stories, Non-Functional Requirements, and Annexure...'):
+        with st.spinner('Generating Part 3: User Journey, User Stories, and Non-Functional Requirements...'):
             with part3_container:
-                response_part3 = generate_brd_part(prompt_part3, st.empty())
+                model = get_model(3, mode)
+                response_part3 = generate_brd_part(prompt_part3, st.empty(), model, temp_part3)
+
+        progress_bar.progress(3/4)
+        status_text.text("Part 3 completed. Generating Part 4...")
+
+        # Part 4: Annexure
+        prompt_part4 = f"""
+        Create the fourth part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading, sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
+
+        Client Name: {st.session_state.form_fields['client_name']}
+        Project Description and Requirements:
+        {st.session_state.form_fields['project_description']}
+        Types of Users:
+        {user_types_str}
+        Project Deliverables:
+        {deliverables_str}
+
+        Previously generated content:
+        {response_part1}
+        {response_part2}
+        {response_part3}
+
+        Now, include the following section:
+        """
+
+        if "Annexure" in sections_part4:
+            prompt_part4 += """
+            Annexure: 
+            a. Functional Requirements: Create a separate table for each deliverable in the Functional Requirements. Each table should have the following columns:
+            - Requirement ID
+            - Module
+            - Description
+
+            b. 3rd Party Services and APIs: Create a table summarizing all suggested 3rd party services and APIs. This table should have the following columns:
+            - Service/API Name
+            - Functional Area
+            - Description
+            """
+
+        prompt_part4 += """
+        Provide detailed and professional content for this section, incorporating all the provided information and ensuring consistency with the previously generated sections.
+        Use Markdown formatting for proper structure, including tables where specified.
+        """
+
+        with st.spinner('Generating Part 4: Annexure...'):
+            with part4_container:
+                model = get_model(4, mode)
+                response_part4 = generate_brd_part(prompt_part4, st.empty(), model, temp_part4)
 
         progress_bar.progress(1.0)
         status_text.text("BRD Generation Completed!")
@@ -731,6 +848,8 @@ if st.button("Generate BRD", key="generate_brd"):
 {response_part2}
 
 {response_part3}
+
+{response_part4}
 """
 
         st.success("BRD Generated Successfully!")
@@ -769,48 +888,32 @@ if st.button("Generate BRD", key="generate_brd"):
     else:
         st.error("Please fill in all fields before generating the BRD.")
 
-# Feedback Form in a collapsible section (open by default)
-st.markdown("---")
-with st.expander("We Value Your Feedback!", expanded=True):
-    st.markdown("Please take a moment to provide your feedback on the BRD Generator tool.")
-    
-    # Embed the Tally feedback form with increased height
-    tally_embed_code = """
-    <iframe data-tally-src="https://tally.so/embed/mVV08g?alignLeft=1&transparentBackground=1&dynamicHeight=1" loading="lazy" width="100%" height="7200" frameborder="0" marginheight="0" marginwidth="0" title="BRD Generator Feedback Q&A"></iframe>
-    <script>var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector('script[src="'+w+'"]')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s);}</script>
-    """
-    
-    html(tally_embed_code, height=4600)
-
-# Add a visual representation of the BRD generation process
-st.markdown("## BRD Generation Process")
-process_chart = """
-digraph G {
-    rankdir=LR;
-    node [shape=box, style=filled, color=lightblue];
-    Input [label="User Input"];
-    Process [label="AI Processing"];
-    Output [label="Generated BRD"];
-    Input -> Process -> Output;
-}
-"""
-st.graphviz_chart(process_chart)
-
 # Add some final instructions or information
 st.markdown("""
 ---
 ### How to use this BRD Generator:
 1. Fill in all the required fields in the form above.
-2. Click on the "Generate BRD" button to create your Business Requirements Document.
-3. The generated BRD will be displayed on this page.
-4. You can download the BRD as a Markdown file, PDF, or DOCX using the buttons provided.
+2. Adjust the Advanced Settings in the sidebar if needed.
+3. Click on the "Generate BRD" button to create your Business Requirements Document.
+4. The generated BRD will be displayed on this page.
+5. You can download the BRD as a Markdown file, PDF, or DOCX using the buttons provided.
 
-If you need to make changes, simply update the form fields and generate the BRD again.
+If you need to make changes, simply update the form fields or Advanced Settings and generate the BRD again.
 """)
 
 # Footer
 st.markdown("---")
 st.markdown("© 2024 EMB-AI. All rights reserved.")
+
+# Set default zoom level to 90%
+st.markdown(
+    """
+    <script>
+        document.body.style.zoom = "90%";
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 
 # Add any additional configurations or settings here
 if __name__ == "__main__":
