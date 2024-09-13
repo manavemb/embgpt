@@ -25,7 +25,6 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.shared import OxmlElement, qn
 from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
-import tiktoken
 import re
 
 # Set up the Anthropic client
