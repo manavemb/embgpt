@@ -692,23 +692,11 @@ if st.button("Generate BRD", key="generate_brd"):
             )
 
         # Display the generated BRD
-        st.markdown("## Generated Business Requirements Document")
-        st.markdown(full_brd)
+        # st.markdown("## Generated Business Requirements Document")
+        # st.markdown(full_brd)
 
     else:
         st.error("Please fill in all fields before generating the BRD.")
-
-# Add some final instructions or information
-st.markdown("""
----
-### How to use this BRD Generator:
-1. Fill in all the required fields in the form above.
-2. Click on the "Generate BRD" button to create your Business Requirements Document.
-3. The generated BRD will be displayed on this page.
-4. You can download the BRD as a Markdown file, PDF, or DOCX using the buttons provided.
-
-If you need to make changes, simply update the form fields and generate the BRD again.
-""")
 
 # Footer
 st.markdown("---")
