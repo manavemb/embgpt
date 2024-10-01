@@ -102,7 +102,7 @@ temp_part4 = 0.0
 
 # Function to determine model
 def get_model(part):
-    return "claude-3-5-sonnet-20240620"
+    return "claude-3-opus-20240229"
 
 # Main content
 st.markdown("""
