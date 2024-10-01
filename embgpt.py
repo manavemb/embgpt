@@ -165,7 +165,7 @@ def generate_brd_part(prompt, placeholder, model, temperature):
 
     with client.messages.stream(
         model=model,
-        max_tokens=4096,
+        max_tokens=8192,
         temperature=temperature,
         messages=[
             {"role": "user", "content": prompt}
