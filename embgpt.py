@@ -28,6 +28,8 @@ from docx.oxml import parse_xml
 import re
 from typing import Optional
 import base64
+from google.oauth2.service_account import Credentials
+import gspread
 
 # Set up the Anthropic client
 client = Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
@@ -53,6 +55,90 @@ if 'form_fields' not in st.session_state:
         'version_number': 'v1'
     }
 
+# Google Sheets Setup Functions
+def setup_google_sheets():
+    """Initialize Google Sheets connection"""
+    scope = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    
+    credentials = {
+        "type": "service_account",
+        "project_id": st.secrets["GOOGLE_SHEETS"]["project_id"],
+        "private_key_id": st.secrets["GOOGLE_SHEETS"]["private_key_id"],
+        "private_key": st.secrets["GOOGLE_SHEETS"]["private_key"],
+        "client_email": st.secrets["GOOGLE_SHEETS"]["client_email"],
+        "client_id": st.secrets["GOOGLE_SHEETS"]["client_id"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": st.secrets["GOOGLE_SHEETS"]["client_x509_cert_url"]
+    }
+    
+    creds = Credentials.from_service_account_info(credentials, scopes=scope)
+    client = gspread.authorize(creds)
+    return client
+
+def save_brd_data(form_data):
+    """Save BRD data to Google Sheets"""
+    try:
+        client = setup_google_sheets()
+        worksheet = client.open("EMBGPT").worksheet("Sheet1")
+        
+        # Prepare row data
+        row_data = [
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),    # Timestamp
+            form_data['client_name'],                        # Client Name
+            form_data['project_description'],                # Project Description
+            form_data['user_types'],                        # User Types
+            form_data['deliverables'],                      # Deliverables
+            form_data['prepared_by'],                       # Prepared By
+            form_data['document_date'].strftime('%Y-%m-%d'), # Document Date
+            form_data['version_number'],                    # Version Number
+            "0",                                            # Download Count MD
+            "0",                                            # Download Count PDF
+            "0"                                             # Download Count DOCX
+        ]
+        
+        worksheet.append_row(row_data)
+        return True
+        
+    except Exception as e:
+        print(f"Error saving to Google Sheets: {str(e)}")
+        return False
+
+def update_download_count(client_name: str, version: str, file_type: str):
+    """Update download count for specific BRD and file type"""
+    try:
+        client = setup_google_sheets()
+        worksheet = client.open("EMBGPT").worksheet("Sheet1")
+        
+        # Get all data
+        all_data = worksheet.get_all_values()
+        headers = all_data[0]
+        
+        # Find the column index for download count
+        count_column = f"Download_Count_{file_type.upper()}"
+        try:
+            count_col_idx = headers.index(count_column) + 1
+        except ValueError:
+            print(f"Column {count_column} not found")
+            return
+            
+        # Find the row for this client and version
+        client_col_idx = headers.index("Client_Name") + 1
+        version_col_idx = headers.index("Version_Number") + 1
+        
+        for row_idx, row in enumerate(all_data[1:], start=2):
+            if (row[client_col_idx-1] == client_name and 
+                row[version_col_idx-1] == version):
+                current_count = int(row[count_col_idx-1])
+                worksheet.update_cell(row_idx, count_col_idx, current_count + 1)
+                break
+    
+    except Exception as e:
+        print(f"Error updating download count: {str(e)}")
 # Function to load and encode the local image
 def get_base64_of_bin_file(bin_file):
     with open(bin_file, 'rb') as f:
@@ -199,7 +285,6 @@ This document contains confidential and proprietary information. It is shared un
 **Email:** contact@exmyb.com
 **Website:** www.emb.global
 """
-
 # Document Information expander
 with st.expander("Document Information", expanded=True):
     col1, col2, col3 = st.columns(3)
@@ -311,7 +396,6 @@ def generate_brd_part(prompt, placeholder, model, temperature):
             response += text
             placeholder.markdown(response)
     return response
-
 # Prompt generation functions
 def get_prompt_part1():
     return f"""
@@ -340,6 +424,7 @@ def get_prompt_part1():
     Use Markdown formatting for proper structure.
     Do not include a title for the BRD itself, as it will be added separately.
     """
+
 def get_prompt_part2(response_part1):
     return f"""
     Create the second part of a detailed Business Requirements Document (BRD) for the following project: (Numbering, heading, sub headings and paragraph should be properly formatted and don't write keyword like description or module while writing description, text sizes should be appropriate.)
@@ -446,7 +531,6 @@ def get_prompt_part4(response_part1, response_part2, response_part3):
     Ensure all tables are properly formatted in Markdown and contain comprehensive information from the previous sections.
     Each requirement should have a unique ID and detailed description.
     """
-
 def convert_markdown_to_pdf(markdown_content):
     # First, explicitly process markdown headers
     def process_markdown_headers(content):
@@ -718,7 +802,6 @@ def convert_markdown_to_pdf(markdown_content):
     doc.build(flowables, onFirstPage=add_watermark_and_page_number, onLaterPages=add_watermark_and_page_number)
     buffer.seek(0)
     return buffer
-
 def convert_markdown_to_docx(markdown_content):
     doc = Document()
     
@@ -786,53 +869,40 @@ def convert_markdown_to_docx(markdown_content):
     
     sect_pr.append(border)
 
+    # Process first page content
+    first_page = create_first_page_content(
+        st.session_state.form_fields['client_name'],
+        st.session_state.form_fields['prepared_by'],
+        st.session_state.form_fields['document_date'],
+        st.session_state.form_fields['version_number']
+    )
+    
+    # Convert first page markdown to HTML
+    first_page_html = markdown2.markdown(first_page)
+    
     # Add logo to center of cover page
     title_paragraph = doc.add_paragraph()
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title_paragraph.add_run()
-    run.add_picture("watermark.png", width=Cm(8))  # Logo size 8cm width
+    run.add_picture("watermark.png", width=Cm(8))
     
-    # Add spacing after logo
-    doc.add_paragraph()
+    # Process first page content
+    soup_first_page = BeautifulSoup(first_page_html, 'html.parser')
+    for element in soup_first_page.find_all(['h1', 'h2', 'p', 'hr']):
+        if element.name == 'h1':
+            doc.add_paragraph(element.text.strip(), style=style_heading1)
+        elif element.name == 'h2':
+            doc.add_paragraph(element.text.strip(), style=style_heading2)
+        elif element.name == 'p':
+            if element.text.strip().startswith('**') and element.text.strip().endswith('**'):
+                # Handle bold text (like company name)
+                p = doc.add_paragraph(element.text.strip().replace('**', ''), style=style_company_name)
+            else:
+                p = doc.add_paragraph(element.text.strip(), style=style_contact_info)
+        elif element.name == 'hr':
+            doc.add_paragraph('─' * 50, style=style_normal)
 
-    # Add document title
-    title = doc.add_paragraph("Business Requirements Document", style=style_cover_title)
-    doc.add_paragraph()
-
-    # Add client name
-    client = doc.add_paragraph(st.session_state.form_fields['client_name'], style=style_cover_subtitle)
-    doc.add_paragraph()
-
-    # Add document info
-    version = validate_version_number(st.session_state.form_fields['version_number'])
-    formatted_date = st.session_state.form_fields['document_date'].strftime("%B %d, %Y")
-    prepared_by = st.session_state.form_fields['prepared_by']
-
-    info_items = [
-        f"Version: {version}",
-        f"Date: {formatted_date}",
-        f"Prepared By: {prepared_by}"
-    ]
-
-    for item in info_items:
-        p = doc.add_paragraph(item, style=style_cover_info)
-    
-    doc.add_paragraph()
-
-    # Add company info
-    company = doc.add_paragraph("EMB-AI", style=style_company_name)
-    
-    company_info = [
-        "Plot No. 17, Phase-4, Maruti Udyog, Sector 18, Gurugram, HR",
-        "Phone: +91-8882102246",
-        "Email: contact@exmyb.com",
-        "Website: www.emb.global"
-    ]
-    
-    for info in company_info:
-        p = doc.add_paragraph(info, style=style_contact_info)
-
-    # Add page break after cover page
+    # Add page break after first page
     doc.add_page_break()
 
     # Add watermark to header (for all pages except cover)
@@ -870,7 +940,8 @@ def convert_markdown_to_docx(markdown_content):
         if i > 0:  # Skip first section (cover page)
             add_header_with_watermark(section)
             add_footer_with_page_number(section)
-                # Convert markdown to HTML and process content
+
+    # Convert markdown to HTML and process content
     html_content = markdown2.markdown(markdown_content, extras=["tables", "fenced-code-blocks"])
     soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -939,41 +1010,44 @@ def convert_markdown_to_docx(markdown_content):
     docx_buffer.seek(0)
     return docx_buffer
 
+# Download button fragments
 @st.fragment
 def markdown_download(content: str, client_name: str, version: str):
-    """Fragment for Markdown download"""
-    st.download_button(
+    """Fragment for Markdown download with tracking"""
+    if st.download_button(
         label="📄 Download as Markdown",
         data=content,
         file_name=f"BRD_{client_name}_{version}.md",
         mime="text/markdown",
         help="Download the BRD in Markdown format"
-    )
+    ):
+        update_download_count(client_name, version, 'MD')
 
 @st.fragment
 def pdf_download(content: str, client_name: str, version: str):
-    """Fragment for PDF download"""
+    """Fragment for PDF download with tracking"""
     pdf_buffer = convert_markdown_to_pdf(content)
-    st.download_button(
+    if st.download_button(
         label="📑 Download as PDF",
         data=pdf_buffer,
         file_name=f"BRD_{client_name}_{version}.pdf",
         mime="application/pdf",
         help="Download the BRD in PDF format"
-    )
+    ):
+        update_download_count(client_name, version, 'PDF')
 
 @st.fragment
 def docx_download(content: str, client_name: str, version: str):
-    """Fragment for DOCX download"""
+    """Fragment for DOCX download with tracking"""
     docx_buffer = convert_markdown_to_docx(content)
-    st.download_button(
+    if st.download_button(
         label="📝 Download as DOCX",
         data=docx_buffer,
         file_name=f"BRD_{client_name}_{version}.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         help="Download the BRD in DOCX format"
-    )
-
+    ):
+        update_download_count(client_name, version, 'DOCX')
 # Generate BRD button
 if st.button("Generate BRD", key="generate_brd"):
     # Validate all required fields
@@ -994,6 +1068,10 @@ if st.button("Generate BRD", key="generate_brd"):
         st.error("\n".join(validation_errors))
     else:
         try:
+            # Save form data to Google Sheets
+            if save_brd_data(st.session_state.form_fields):
+                st.success("Form data saved successfully!")
+            
             progress_bar = st.progress(0)
             status_text = st.empty()
 
@@ -1069,7 +1147,6 @@ if st.button("Generate BRD", key="generate_brd"):
 
             # Combine all parts into final document
             full_brd = f"""
-
 {response_part1}
 
 {response_part2}
@@ -1100,20 +1177,20 @@ if st.button("Generate BRD", key="generate_brd"):
             
             with col3:
                 docx_download(full_brd, client_name, version)
-
-            # Footer
-            st.markdown("---")
-            st.markdown("""
-            <div style='text-align: center;'>
-                <p>© 2024 EMB-AI. All rights reserved.</p>
-                <p style='font-size: 0.8em;'>Plot No. 17, Phase-4, Maruti Udyog, Sector 18, Gurugram, HR</p>
-                <p style='font-size: 0.8em;'>Phone: +91-8882102246 | Email: contact@exmyb.com | Website: www.emb.global</p>
-            </div>
-            """, unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"An error occurred during BRD generation: {str(e)}")
             st.error("Please try again or contact support if the issue persists.")
+
+# Footer - add at the very end
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center;'>
+    <p>© 2024 EMB-AI. All rights reserved.</p>
+    <p style='font-size: 0.8em;'>Plot No. 17, Phase-4, Maruti Udyog, Sector 18, Gurugram, HR</p>
+    <p style='font-size: 0.8em;'>Phone: +91-8882102246 | Email: contact@exmyb.com | Website: www.emb.global</p>
+</div>
+""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     pass
